@@ -7,7 +7,7 @@ end
 _G.AutoSwing = nil
 
 --// Cấu hình
-local VERSION = "v1.1"
+local VERSION = "v1.2.2"
 local LANG = "vi" -- vi = Tiếng Việt, en = English
 local guiVisible = true
 
