@@ -7,7 +7,7 @@ end
 _G.AutoSwing = nil
 
 --// Cấu hình
-local VERSION = "v1.2.1"
+local VERSION = "v1.1"
 local LANG = "vi" -- vi = Tiếng Việt, en = English
 local guiVisible = true
 
@@ -236,13 +236,22 @@ langBtn.MouseButton1Click:Connect(function()
 	end
 end)
 
--- Nút đóng/mở GUI
+-- Nút đóng/mở GUI (fix + animation)
+local TweenService = game:GetService("TweenService")
+local expandedSize = UDim2.new(0, 220, 0, 170)
+local collapsedSize = UDim2.new(0, 220, 0, 25)
+
 closeBtn.MouseButton1Click:Connect(function()
 	guiVisible = not guiVisible
-	for _, v in pairs(mainFrame:GetChildren()) do
-		if v ~= dragBar and v ~= closeBtn and v ~= dragLabel then
+	
+	for _, v in ipairs(mainFrame:GetChildren()) do
+		if v:IsA("GuiObject") and v ~= dragBar then
 			v.Visible = guiVisible
 		end
 	end
+
+	local goal = { Size = guiVisible and expandedSize or collapsedSize }
+	TweenService:Create(mainFrame, TweenInfo.new(0.25, Enum.EasingStyle.Quad, Enum.EasingDirection.Out), goal):Play()
+
 	closeBtn.Text = guiVisible and "—" or "+"
 end)
