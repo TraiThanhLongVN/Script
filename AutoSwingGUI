@@ -7,7 +7,7 @@ end
 _G.AutoSwing = nil
 
 --// Cấu hình
-local VERSION = "v1.1"
+local VERSION = "v1.2"
 local LANG = "vi" -- vi = Tiếng Việt, en = English
 local guiVisible = true
 
@@ -240,7 +240,7 @@ end)
 closeBtn.MouseButton1Click:Connect(function()
 	guiVisible = not guiVisible
 	for _, v in pairs(mainFrame:GetChildren()) do
-		if v ~= dragBar then
+		if v ~= dragBar and v ~= closeBtn and v ~= dragLabel then
 			v.Visible = guiVisible
 		end
 	end
