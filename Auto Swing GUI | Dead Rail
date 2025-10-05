@@ -1,0 +1,248 @@
+--// Xóa GUI cũ và reset _G
+for _, gui in pairs(game:GetService("Players").LocalPlayer.PlayerGui:GetChildren()) do
+	if gui.Name == "AutoSwingGUI" then
+		gui:Destroy()
+	end
+end
+_G.AutoSwing = nil
+
+--// Cấu hình
+local VERSION = "v1.1"
+local LANG = "vi" -- vi = Tiếng Việt, en = English
+local guiVisible = true
+
+--// GUI chính
+local player = game:GetService("Players").LocalPlayer
+local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
+gui.Name = "AutoSwingGUI"
+gui.ResetOnSpawn = false
+gui.DisplayOrder = 999
+
+-- Frame chính
+local mainFrame = Instance.new("Frame", gui)
+mainFrame.Size = UDim2.new(0, 220, 0, 170)
+mainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
+mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
+
+-- Thanh kéo
+local dragBar = Instance.new("Frame", mainFrame)
+dragBar.Size = UDim2.new(1, 0, 0, 25)
+dragBar.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+Instance.new("UICorner", dragBar).CornerRadius = UDim.new(0, 10)
+
+local dragLabel = Instance.new("TextLabel", dragBar)
+dragLabel.Size = UDim2.new(1, -30, 1, 0)
+dragLabel.Position = UDim2.new(0, 5, 0, 0)
+dragLabel.BackgroundTransparency = 1
+dragLabel.Text = "🎯 Auto Swing GUI for Dead Rail"
+dragLabel.Font = Enum.Font.SourceSansBold
+dragLabel.TextSize = 17
+dragLabel.TextColor3 = Color3.new(1, 1, 1)
+
+-- 🔘 Nút đóng/mở
+local closeBtn = Instance.new("TextButton", dragBar)
+closeBtn.Size = UDim2.new(0, 25, 0, 25)
+closeBtn.Position = UDim2.new(1, -25, 0, 0)
+closeBtn.BackgroundColor3 = Color3.fromRGB(90, 90, 90)
+closeBtn.Text = "—"
+closeBtn.TextColor3 = Color3.new(1, 1, 1)
+closeBtn.Font = Enum.Font.SourceSansBold
+closeBtn.TextSize = 18
+Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
+
+-- Kéo được
+local uis = game:GetService("UserInputService")
+local dragging, dragInput, dragStart, startPos
+local function update(input)
+	local delta = input.Position - dragStart
+	mainFrame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X,
+		startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+end
+dragBar.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		dragging = true
+		dragStart = input.Position
+		startPos = mainFrame.Position
+		input.Changed:Connect(function()
+			if input.UserInputState == Enum.UserInputState.End then dragging = false end
+		end)
+	end
+end)
+dragBar.InputChanged:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+		dragInput = input
+	end
+end)
+uis.InputChanged:Connect(function(input)
+	if input == dragInput and dragging then update(input) end
+end)
+
+-- Nút AutoSwing
+local autoSwingBtn = Instance.new("TextButton", mainFrame)
+autoSwingBtn.Size = UDim2.new(1, -20, 0, 40)
+autoSwingBtn.Position = UDim2.new(0, 10, 0, 35)
+autoSwingBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+autoSwingBtn.Text = "AutoSwing: OFF"
+autoSwingBtn.TextColor3 = Color3.new(1, 1, 1)
+autoSwingBtn.Font = Enum.Font.SourceSansBold
+autoSwingBtn.TextSize = 20
+Instance.new("UICorner", autoSwingBtn).CornerRadius = UDim.new(0, 8)
+
+-- Slider
+local sliderFrame = Instance.new("Frame", mainFrame)
+sliderFrame.Size = UDim2.new(1, -20, 0, 20)
+sliderFrame.Position = UDim2.new(0, 10, 0, 80)
+sliderFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+Instance.new("UICorner", sliderFrame).CornerRadius = UDim.new(0, 6)
+
+local sliderFill = Instance.new("Frame", sliderFrame)
+sliderFill.Size = UDim2.new(0.5, 0, 1, 0)
+sliderFill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
+Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(0, 6)
+
+-- Nhãn tốc độ
+local speedLabel = Instance.new("TextLabel", mainFrame)
+speedLabel.Size = UDim2.new(1, 0, 0, 20)
+speedLabel.Position = UDim2.new(0, 0, 0, 105)
+speedLabel.BackgroundTransparency = 1
+speedLabel.TextColor3 = Color3.new(1, 1, 1)
+speedLabel.Font = Enum.Font.SourceSans
+speedLabel.TextSize = 18
+speedLabel.Text = "Tốc độ: 50% (0.27s/hit)"
+
+-- Galaxy Credit
+local credit = Instance.new("TextLabel", mainFrame)
+credit.Size = UDim2.new(1, 0, 0, 20)
+credit.Position = UDim2.new(0, 0, 0, 125)
+credit.BackgroundTransparency = 1
+credit.Font = Enum.Font.SourceSansBold
+credit.TextSize = 15
+credit.Text = "Made by Thanh Long x GPT-5"
+credit.TextStrokeTransparency = 0.2
+credit.TextStrokeColor3 = Color3.fromRGB(200, 150, 255)
+local gradient = Instance.new("UIGradient", credit)
+gradient.Color = ColorSequence.new{
+	ColorSequenceKeypoint.new(0, Color3.fromRGB(170, 90, 255)),
+	ColorSequenceKeypoint.new(0.5, Color3.fromRGB(90, 200, 255)),
+	ColorSequenceKeypoint.new(1, Color3.fromRGB(255, 100, 200))
+}
+task.spawn(function()
+	while task.wait(0.1) do
+		gradient.Rotation = (gradient.Rotation + 3) % 360
+	end
+end)
+
+-- Nút đổi ngôn ngữ
+local langBtn = Instance.new("TextButton", mainFrame)
+langBtn.Size = UDim2.new(0.5, -15, 0, 20)
+langBtn.Position = UDim2.new(0, 10, 0, 145)
+langBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+langBtn.TextColor3 = Color3.new(1, 1, 1)
+langBtn.Font = Enum.Font.SourceSansBold
+langBtn.TextSize = 14
+langBtn.Text = "🌐 Tiếng Việt"
+Instance.new("UICorner", langBtn).CornerRadius = UDim.new(0, 6)
+
+-- Phiên bản
+local versionLabel = Instance.new("TextLabel", mainFrame)
+versionLabel.Size = UDim2.new(0.5, -15, 0, 20)
+versionLabel.Position = UDim2.new(0.5, 5, 0, 145)
+versionLabel.BackgroundTransparency = 1
+versionLabel.Font = Enum.Font.SourceSansItalic
+versionLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
+versionLabel.TextSize = 14
+versionLabel.Text = VERSION
+
+-- Biến
+_G.AutoSwing = false
+local sliderValue = 0.5
+
+-- Slider logic
+local draggingSlider = false
+sliderFrame.InputBegan:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingSlider = true
+	end
+end)
+uis.InputEnded:Connect(function(input)
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		draggingSlider = false
+	end
+end)
+uis.InputChanged:Connect(function(input)
+	if draggingSlider and (input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch) then
+		local relX = math.clamp((input.Position.X - sliderFrame.AbsolutePosition.X) / sliderFrame.AbsoluteSize.X, 0, 1)
+		sliderValue = relX
+		sliderFill.Size = UDim2.new(relX, 0, 1, 0)
+		local waitTime = 0.5 - (sliderValue * 0.45)
+		if LANG == "vi" then
+			speedLabel.Text = string.format("Tốc độ: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), waitTime)
+		else
+			speedLabel.Text = string.format("Speed: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), waitTime)
+		end
+	end
+end)
+
+-- AutoSwing loop
+task.spawn(function()
+	while task.wait() do
+		if _G.AutoSwing then
+			local waitTime = 0.5 - (sliderValue * 0.45)
+			local player = game:GetService("Players").LocalPlayer
+			local char = player.Character or player.CharacterAdded:Wait()
+			local weapon = char:FindFirstChildOfClass("Tool")
+
+			if weapon then
+				local args = { weapon, 0, Vector3.new(0, 0, 0) }
+				game:GetService("ReplicatedStorage")
+					:WaitForChild("Shared")
+					:WaitForChild("Network")
+					:WaitForChild("RemoteEvent")
+					:WaitForChild("SwingMelee")
+					:FireServer(unpack(args))
+			end
+			task.wait(waitTime)
+		end
+	end
+end)
+
+-- Toggle AutoSwing
+autoSwingBtn.MouseButton1Click:Connect(function()
+	_G.AutoSwing = not _G.AutoSwing
+	if _G.AutoSwing then
+		autoSwingBtn.Text = LANG == "vi" and "AutoSwing: BẬT" or "AutoSwing: ON"
+		autoSwingBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 0)
+	else
+		autoSwingBtn.Text = LANG == "vi" and "AutoSwing: TẮT" or "AutoSwing: OFF"
+		autoSwingBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
+	end
+end)
+
+-- Đổi ngôn ngữ
+langBtn.MouseButton1Click:Connect(function()
+	if LANG == "vi" then
+		LANG = "en"
+		langBtn.Text = "🌐 English"
+		dragLabel.Text = "🎯 Auto Swing GUI for Dead Rail"
+		autoSwingBtn.Text = _G.AutoSwing and "AutoSwing: ON" or "AutoSwing: OFF"
+		speedLabel.Text = string.format("Speed: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), 0.5 - sliderValue * 0.45)
+	else
+		LANG = "vi"
+		langBtn.Text = "🌐 Tiếng Việt"
+		dragLabel.Text = "🎯 Giao diện Auto Swing"
+		autoSwingBtn.Text = _G.AutoSwing and "AutoSwing: BẬT" or "AutoSwing: TẮT"
+		speedLabel.Text = string.format("Tốc độ: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), 0.5 - sliderValue * 0.45)
+	end
+end)
+
+-- Nút đóng/mở GUI
+closeBtn.MouseButton1Click:Connect(function()
+	guiVisible = not guiVisible
+	for _, v in pairs(mainFrame:GetChildren()) do
+		if v ~= dragBar then
+			v.Visible = guiVisible
+		end
+	end
+	closeBtn.Text = guiVisible and "—" or "+"
+end)
