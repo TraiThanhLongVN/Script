@@ -7,9 +7,15 @@ end
 _G.AutoSwing = nil
 
 --// Cấu hình
-local VERSION = "v1.2.2"
+local VERSION = "v1.2.5"
 local LANG = "vi" -- vi = Tiếng Việt, en = English
 local guiVisible = true
+
+-- Cấu hình tốc độ dễ dàng điều chỉnh
+_G.SwingSpeedDelta = "0.49" -- Quyết định tốc độ tối đa.
+                          -- Giá trị càng cao, tốc độ càng nhanh.
+                          -- 0.45 = 0.05s/hit (max)
+                          -- 0.49 = 0.01s/hit (max)
 
 --// GUI chính
 local player = game:GetService("Players").LocalPlayer
@@ -37,7 +43,7 @@ dragLabel.Position = UDim2.new(0, 5, 0, 0)
 dragLabel.BackgroundTransparency = 1
 dragLabel.Text = "🎯 Auto Swing GUI for Dead Rail"
 dragLabel.Font = Enum.Font.SourceSansBold
-dragLabel.TextSize = 17
+dragLabel.TextSize = 16
 dragLabel.TextColor3 = Color3.new(1, 1, 1)
 
 -- 🔘 Nút đóng/mở
@@ -103,13 +109,15 @@ Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(0, 6)
 
 -- Nhãn tốc độ
 local speedLabel = Instance.new("TextLabel", mainFrame)
+local initialSliderValue = 0.5
+local initialWaitTime = 0.5 - (initialSliderValue * _G.SwingSpeedDelta) -- Sử dụng biến _G
 speedLabel.Size = UDim2.new(1, 0, 0, 20)
 speedLabel.Position = UDim2.new(0, 0, 0, 105)
 speedLabel.BackgroundTransparency = 1
 speedLabel.TextColor3 = Color3.new(1, 1, 1)
 speedLabel.Font = Enum.Font.SourceSans
 speedLabel.TextSize = 18
-speedLabel.Text = "Tốc độ: 50% (0.27s/hit)"
+speedLabel.Text = string.format("Tốc độ: 50%% (%.2fs/hit)", initialWaitTime) -- Hiển thị tốc độ ban đầu
 
 -- Galaxy Credit
 local credit = Instance.new("TextLabel", mainFrame)
@@ -156,7 +164,7 @@ versionLabel.Text = VERSION
 
 -- Biến
 _G.AutoSwing = false
-local sliderValue = 0.5
+local sliderValue = initialSliderValue -- Khởi tạo bằng 0.5
 
 -- Slider logic
 local draggingSlider = false
@@ -175,7 +183,7 @@ uis.InputChanged:Connect(function(input)
 		local relX = math.clamp((input.Position.X - sliderFrame.AbsolutePosition.X) / sliderFrame.AbsoluteSize.X, 0, 1)
 		sliderValue = relX
 		sliderFill.Size = UDim2.new(relX, 0, 1, 0)
-		local waitTime = 0.5 - (sliderValue * 0.45)
+		local waitTime = 0.5 - (sliderValue * _G.SwingSpeedDelta) -- SỬA ĐỔI: Sử dụng _G.SwingSpeedDelta
 		if LANG == "vi" then
 			speedLabel.Text = string.format("Tốc độ: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), waitTime)
 		else
@@ -188,7 +196,7 @@ end)
 task.spawn(function()
 	while task.wait() do
 		if _G.AutoSwing then
-			local waitTime = 0.5 - (sliderValue * 0.45)
+			local waitTime = 0.5 - (sliderValue * _G.SwingSpeedDelta) -- SỬA ĐỔI: Sử dụng _G.SwingSpeedDelta
 			local player = game:GetService("Players").LocalPlayer
 			local char = player.Character or player.CharacterAdded:Wait()
 			local weapon = char:FindFirstChildOfClass("Tool")
@@ -226,13 +234,13 @@ langBtn.MouseButton1Click:Connect(function()
 		langBtn.Text = "🌐 English"
 		dragLabel.Text = "🎯 Auto Swing GUI for Dead Rail"
 		autoSwingBtn.Text = _G.AutoSwing and "AutoSwing: ON" or "AutoSwing: OFF"
-		speedLabel.Text = string.format("Speed: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), 0.5 - sliderValue * 0.45)
+		speedLabel.Text = string.format("Speed: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), 0.5 - sliderValue * _G.SwingSpeedDelta) -- SỬA ĐỔI
 	else
 		LANG = "vi"
 		langBtn.Text = "🌐 Tiếng Việt"
 		dragLabel.Text = "🎯 Giao diện Auto Swing"
 		autoSwingBtn.Text = _G.AutoSwing and "AutoSwing: BẬT" or "AutoSwing: TẮT"
-		speedLabel.Text = string.format("Tốc độ: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), 0.5 - sliderValue * 0.45)
+		speedLabel.Text = string.format("Tốc độ: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), 0.5 - sliderValue * _G.SwingSpeedDelta) -- SỬA ĐỔI
 	end
 end)
 
