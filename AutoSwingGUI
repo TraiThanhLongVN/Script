@@ -5,20 +5,53 @@ for _, gui in pairs(game:GetService("Players").LocalPlayer.PlayerGui:GetChildren
 	end
 end
 _G.AutoSwing = nil
+_G.HitMultiplier = nil
 
 --// Cấu hình
-local VERSION = "v1.2.5"
+local VERSION = "v1.3.3" -- Cập nhật version
 local LANG = "vi" -- vi = Tiếng Việt, en = English
 local guiVisible = true
 
 -- Cấu hình tốc độ dễ dàng điều chỉnh
-_G.SwingSpeedDelta = "0.49" -- Quyết định tốc độ tối đa.
-                          -- Giá trị càng cao, tốc độ càng nhanh.
-                          -- 0.45 = 0.05s/hit (max)
-                          -- 0.49 = 0.01s/hit (max)
+_G.SwingSpeedDelta = 0.49
+
+-- Cấu hình Nhân Số Lần Đánh
+local MAX_MULTIPLIER = 10
+local MIN_MULTIPLIER = 1
+
+--// Các Service Cần Thiết
+local Players = game:GetService("Players")
+local Workspace = game:GetService("Workspace")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local RunService = game:GetService("RunService")
+local uis = game:GetService("UserInputService")
+local TweenService = game:GetService("TweenService")
+
+--// Hàm Raycast để tìm vị trí mục tiêu (Camera sight)
+local function getHitPosition()
+	local camera = Workspace.CurrentCamera
+	-- Cài đặt Raycast
+	local raycastParams = RaycastParams.new()
+	local player = Players.LocalPlayer
+	-- Bỏ qua Character của người chơi để Raycast không bị chặn bởi chính mình
+	raycastParams.FilterDescendantsInstances = {player.Character}
+	raycastParams.FilterType = Enum.RaycastFilterType.Exclude
+	
+	-- Thực hiện Raycast từ trung tâm màn hình
+	local raycastResult = Workspace:Raycast(camera.CFrame.Position, camera.CFrame.LookVector * 1000, raycastParams)
+	
+	if raycastResult then
+		-- Trả về vị trí va chạm
+		return raycastResult.Position
+	else
+		-- Nếu Raycast không trúng gì (như nhìn ra ngoài không gian), trả về một điểm xa phía trước
+		return camera.CFrame.Position + camera.CFrame.LookVector * 100
+	end
+end
+
 
 --// GUI chính
-local player = game:GetService("Players").LocalPlayer
+local player = Players.LocalPlayer
 local gui = Instance.new("ScreenGui", player:WaitForChild("PlayerGui"))
 gui.Name = "AutoSwingGUI"
 gui.ResetOnSpawn = false
@@ -26,7 +59,7 @@ gui.DisplayOrder = 999
 
 -- Frame chính
 local mainFrame = Instance.new("Frame", gui)
-mainFrame.Size = UDim2.new(0, 220, 0, 170)
+mainFrame.Size = UDim2.new(0, 220, 0, 210) 
 mainFrame.Position = UDim2.new(0.05, 0, 0.25, 0)
 mainFrame.BackgroundColor3 = Color3.fromRGB(40, 40, 40)
 Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 10)
@@ -41,7 +74,7 @@ local dragLabel = Instance.new("TextLabel", dragBar)
 dragLabel.Size = UDim2.new(1, -30, 1, 0)
 dragLabel.Position = UDim2.new(0, 5, 0, 0)
 dragLabel.BackgroundTransparency = 1
-dragLabel.Text = "🎯 Auto Swing GUI for Dead Rail"
+dragLabel.Text = "🎯 Giao diện Auto Swing"
 dragLabel.Font = Enum.Font.SourceSansBold
 dragLabel.TextSize = 16
 dragLabel.TextColor3 = Color3.new(1, 1, 1)
@@ -58,7 +91,6 @@ closeBtn.TextSize = 18
 Instance.new("UICorner", closeBtn).CornerRadius = UDim.new(0, 8)
 
 -- Kéo được
-local uis = game:GetService("UserInputService")
 local dragging, dragInput, dragStart, startPos
 local function update(input)
 	local delta = input.Position - dragStart
@@ -84,18 +116,19 @@ uis.InputChanged:Connect(function(input)
 	if input == dragInput and dragging then update(input) end
 end)
 
--- Nút AutoSwing
+
+-- Nút AutoSwing (Vị trí Y: 35)
 local autoSwingBtn = Instance.new("TextButton", mainFrame)
 autoSwingBtn.Size = UDim2.new(1, -20, 0, 40)
 autoSwingBtn.Position = UDim2.new(0, 10, 0, 35)
 autoSwingBtn.BackgroundColor3 = Color3.fromRGB(170, 0, 0)
-autoSwingBtn.Text = "AutoSwing: OFF"
+autoSwingBtn.Text = "AutoSwing: TẮT"
 autoSwingBtn.TextColor3 = Color3.new(1, 1, 1)
 autoSwingBtn.Font = Enum.Font.SourceSansBold
 autoSwingBtn.TextSize = 20
 Instance.new("UICorner", autoSwingBtn).CornerRadius = UDim.new(0, 8)
 
--- Slider
+-- Slider (Vị trí Y: 80)
 local sliderFrame = Instance.new("Frame", mainFrame)
 sliderFrame.Size = UDim2.new(1, -20, 0, 20)
 sliderFrame.Position = UDim2.new(0, 10, 0, 80)
@@ -103,26 +136,56 @@ sliderFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
 Instance.new("UICorner", sliderFrame).CornerRadius = UDim.new(0, 6)
 
 local sliderFill = Instance.new("Frame", sliderFrame)
-sliderFill.Size = UDim2.new(0.5, 0, 1, 0)
+local initialSliderValue = 0.5
+sliderFill.Size = UDim2.new(initialSliderValue, 0, 1, 0)
 sliderFill.BackgroundColor3 = Color3.fromRGB(0, 170, 255)
 Instance.new("UICorner", sliderFill).CornerRadius = UDim.new(0, 6)
 
--- Nhãn tốc độ
+-- Nhãn tốc độ (Vị trí Y: 105)
 local speedLabel = Instance.new("TextLabel", mainFrame)
-local initialSliderValue = 0.5
-local initialWaitTime = 0.5 - (initialSliderValue * _G.SwingSpeedDelta) -- Sử dụng biến _G
+local initialWaitTime = 0.5 - (initialSliderValue * _G.SwingSpeedDelta)
 speedLabel.Size = UDim2.new(1, 0, 0, 20)
 speedLabel.Position = UDim2.new(0, 0, 0, 105)
 speedLabel.BackgroundTransparency = 1
 speedLabel.TextColor3 = Color3.new(1, 1, 1)
 speedLabel.Font = Enum.Font.SourceSans
 speedLabel.TextSize = 18
-speedLabel.Text = string.format("Tốc độ: 50%% (%.2fs/hit)", initialWaitTime) -- Hiển thị tốc độ ban đầu
+speedLabel.Text = string.format("Tốc độ: 50%% (%.2fs/hit)", initialWaitTime)
 
--- Galaxy Credit
+-- TEXTBOX NHÂN ĐÁNH (Vị trí Y: 130)
+local multiplierFrame = Instance.new("Frame", mainFrame)
+multiplierFrame.Size = UDim2.new(1, -20, 0, 30)
+multiplierFrame.Position = UDim2.new(0, 10, 0, 130)
+multiplierFrame.BackgroundColor3 = Color3.fromRGB(60, 60, 60)
+Instance.new("UICorner", multiplierFrame).CornerRadius = UDim.new(0, 6)
+
+local multiplierLabel = Instance.new("TextLabel", multiplierFrame)
+multiplierLabel.Size = UDim2.new(0.65, -5, 1, 0)
+multiplierLabel.Position = UDim2.new(0, 5, 0, 0)
+multiplierLabel.BackgroundTransparency = 1
+multiplierLabel.Text = "Nhân Đánh (1 - 10):"
+multiplierLabel.Font = Enum.Font.SourceSansBold
+multiplierLabel.TextSize = 16
+multiplierLabel.TextColor3 = Color3.new(1, 1, 1)
+multiplierLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local multiplierInput = Instance.new("TextBox", multiplierFrame)
+multiplierInput.Size = UDim2.new(0.35, -5, 1, -6)
+multiplierInput.Position = UDim2.new(0.65, 0, 0, 3)
+multiplierInput.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
+multiplierInput.Text = "1"
+multiplierInput.Font = Enum.Font.SourceSansBold
+multiplierInput.TextSize = 16
+multiplierInput.TextColor3 = Color3.new(1, 1, 1)
+multiplierInput.PlaceholderText = "Số..."
+multiplierInput.TextYAlignment = Enum.TextYAlignment.Center
+multiplierInput.TextXAlignment = Enum.TextXAlignment.Center
+Instance.new("UICorner", multiplierInput).CornerRadius = UDim.new(0, 5)
+
+-- Galaxy Credit (Vị trí Y: 165)
 local credit = Instance.new("TextLabel", mainFrame)
 credit.Size = UDim2.new(1, 0, 0, 20)
-credit.Position = UDim2.new(0, 0, 0, 125)
+credit.Position = UDim2.new(0, 0, 0, 165)
 credit.BackgroundTransparency = 1
 credit.Font = Enum.Font.SourceSansBold
 credit.TextSize = 15
@@ -141,10 +204,10 @@ task.spawn(function()
 	end
 end)
 
--- Nút đổi ngôn ngữ
+-- Nút đổi ngôn ngữ (Vị trí Y: 188)
 local langBtn = Instance.new("TextButton", mainFrame)
 langBtn.Size = UDim2.new(0.5, -15, 0, 20)
-langBtn.Position = UDim2.new(0, 10, 0, 145)
+langBtn.Position = UDim2.new(0, 10, 0, 188)
 langBtn.BackgroundColor3 = Color3.fromRGB(80, 80, 80)
 langBtn.TextColor3 = Color3.new(1, 1, 1)
 langBtn.Font = Enum.Font.SourceSansBold
@@ -152,10 +215,10 @@ langBtn.TextSize = 14
 langBtn.Text = "🌐 Tiếng Việt"
 Instance.new("UICorner", langBtn).CornerRadius = UDim.new(0, 6)
 
--- Phiên bản
+-- Phiên bản (Vị trí Y: 188)
 local versionLabel = Instance.new("TextLabel", mainFrame)
 versionLabel.Size = UDim2.new(0.5, -15, 0, 20)
-versionLabel.Position = UDim2.new(0.5, 5, 0, 145)
+versionLabel.Position = UDim2.new(0.5, 5, 0, 188)
 versionLabel.BackgroundTransparency = 1
 versionLabel.Font = Enum.Font.SourceSansItalic
 versionLabel.TextColor3 = Color3.fromRGB(180, 180, 180)
@@ -164,9 +227,30 @@ versionLabel.Text = VERSION
 
 -- Biến
 _G.AutoSwing = false
-local sliderValue = initialSliderValue -- Khởi tạo bằng 0.5
+_G.SwingSpeedDelta = tonumber(_G.SwingSpeedDelta) or 0.49
+local sliderValue = initialSliderValue
+local hitMultiplierValue = 1
 
--- Slider logic
+-- LOGIC TEXTBOX NHÂN ĐÁNH
+multiplierInput.FocusLost:Connect(function(enterPressed, inputThatCausedFocusLoss)
+	local text = multiplierInput.Text
+	local num = tonumber(text)
+
+	if num and num >= MIN_MULTIPLIER and num <= MAX_MULTIPLIER and num == math.floor(num) then
+		hitMultiplierValue = num
+		multiplierInput.Text = tostring(hitMultiplierValue)
+	else
+		hitMultiplierValue = math.clamp(math.floor(num or MIN_MULTIPLIER), MIN_MULTIPLIER, MAX_MULTIPLIER)
+		multiplierInput.Text = tostring(hitMultiplierValue)
+		
+		local oldColor = multiplierInput.BackgroundColor3
+		multiplierInput.BackgroundColor3 = Color3.fromRGB(200, 50, 50)
+		task.wait(0.5)
+		multiplierInput.BackgroundColor3 = oldColor
+	end
+end)
+
+-- Slider logic (Giữ nguyên)
 local draggingSlider = false
 sliderFrame.InputBegan:Connect(function(input)
 	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
@@ -183,7 +267,7 @@ uis.InputChanged:Connect(function(input)
 		local relX = math.clamp((input.Position.X - sliderFrame.AbsolutePosition.X) / sliderFrame.AbsoluteSize.X, 0, 1)
 		sliderValue = relX
 		sliderFill.Size = UDim2.new(relX, 0, 1, 0)
-		local waitTime = 0.5 - (sliderValue * _G.SwingSpeedDelta) -- SỬA ĐỔI: Sử dụng _G.SwingSpeedDelta
+		local waitTime = 0.5 - (sliderValue * _G.SwingSpeedDelta)
 		if LANG == "vi" then
 			speedLabel.Text = string.format("Tốc độ: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), waitTime)
 		else
@@ -192,30 +276,37 @@ uis.InputChanged:Connect(function(input)
 	end
 end)
 
--- AutoSwing loop
+-- AutoSwing loop (CẬP NHẬT: Thay Vector3.new(0, 0, 0) bằng getHitPosition())
 task.spawn(function()
 	while task.wait() do
 		if _G.AutoSwing then
-			local waitTime = 0.5 - (sliderValue * _G.SwingSpeedDelta) -- SỬA ĐỔI: Sử dụng _G.SwingSpeedDelta
-			local player = game:GetService("Players").LocalPlayer
+			local waitTime = 0.5 - (sliderValue * _G.SwingSpeedDelta)
+			local player = Players.LocalPlayer
 			local char = player.Character or player.CharacterAdded:Wait()
 			local weapon = char:FindFirstChildOfClass("Tool")
 
 			if weapon then
-				local args = { weapon, 0, Vector3.new(0, 0, 0) }
-				game:GetService("ReplicatedStorage")
-					:WaitForChild("Shared")
-					:WaitForChild("Network")
-					:WaitForChild("RemoteEvent")
-					:WaitForChild("SwingMelee")
-					:FireServer(unpack(args))
+				-- SỬA ĐỔI LỚN NHẤT: Lấy vị trí mục tiêu đánh
+				local hitPosition = getHitPosition()
+				
+				local args = { weapon, 0, hitPosition } 
+				
+				-- Gửi yêu cầu tấn công lặp lại theo giá trị nhân
+				for i = 1, hitMultiplierValue do
+					ReplicatedStorage
+						:WaitForChild("Shared")
+						:WaitForChild("Network")
+						:WaitForChild("RemoteEvent")
+						:WaitForChild("SwingMelee")
+						:FireServer(unpack(args))
+				end
 			end
 			task.wait(waitTime)
 		end
 	end
 end)
 
--- Toggle AutoSwing
+-- Toggle AutoSwing (Giữ nguyên)
 autoSwingBtn.MouseButton1Click:Connect(function()
 	_G.AutoSwing = not _G.AutoSwing
 	if _G.AutoSwing then
@@ -227,26 +318,38 @@ autoSwingBtn.MouseButton1Click:Connect(function()
 	end
 end)
 
--- Đổi ngôn ngữ
+-- Đổi ngôn ngữ (Giữ nguyên)
+local function updateMultiplierText()
+	if LANG == "vi" then
+		multiplierLabel.Text = string.format("Nhân Đánh (%d - %d):", MIN_MULTIPLIER, MAX_MULTIPLIER)
+	else
+		multiplierLabel.Text = string.format("Hit Multiplier (%d - %d):", MIN_MULTIPLIER, MAX_MULTIPLIER)
+	end
+end
+updateMultiplierText()
+
 langBtn.MouseButton1Click:Connect(function()
 	if LANG == "vi" then
 		LANG = "en"
 		langBtn.Text = "🌐 English"
 		dragLabel.Text = "🎯 Auto Swing GUI for Dead Rail"
 		autoSwingBtn.Text = _G.AutoSwing and "AutoSwing: ON" or "AutoSwing: OFF"
-		speedLabel.Text = string.format("Speed: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), 0.5 - sliderValue * _G.SwingSpeedDelta) -- SỬA ĐỔI
+		speedLabel.Text = string.format("Speed: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), 0.5 - sliderValue * _G.SwingSpeedDelta)
+		multiplierInput.PlaceholderText = "Num..."
+		updateMultiplierText()
 	else
 		LANG = "vi"
 		langBtn.Text = "🌐 Tiếng Việt"
 		dragLabel.Text = "🎯 Giao diện Auto Swing"
 		autoSwingBtn.Text = _G.AutoSwing and "AutoSwing: BẬT" or "AutoSwing: TẮT"
-		speedLabel.Text = string.format("Tốc độ: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), 0.5 - sliderValue * _G.SwingSpeedDelta) -- SỬA ĐỔI
+		speedLabel.Text = string.format("Tốc độ: %d%% (%.2fs/hit)", math.floor(sliderValue * 100), 0.5 - sliderValue * _G.SwingSpeedDelta)
+		multiplierInput.PlaceholderText = "Số..."
+		updateMultiplierText()
 	end
 end)
 
--- Nút đóng/mở GUI (fix + animation)
-local TweenService = game:GetService("TweenService")
-local expandedSize = UDim2.new(0, 220, 0, 170)
+-- Nút đóng/mở GUI (Giữ nguyên)
+local expandedSize = UDim2.new(0, 220, 0, 210)
 local collapsedSize = UDim2.new(0, 220, 0, 25)
 
 closeBtn.MouseButton1Click:Connect(function()
