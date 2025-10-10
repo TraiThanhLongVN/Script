@@ -1,0 +1,341 @@
+-- Animation Viewer v5.3
+-- ✅ Favorites toggle
+-- ✅ Remove duplicates
+-- ✅ Speed box
+-- ✅ Play once
+-- ✅ Filter only rbxassetid animations
+local Players = game:GetService("Players")
+local player = Players.LocalPlayer
+local PlayerGui = player:WaitForChild("PlayerGui")
+
+local GUI_NAME = "AnimationGUI_v5_3"
+local old = PlayerGui:FindFirstChild(GUI_NAME)
+if old then old:Destroy() end
+
+local ScreenGui = Instance.new("ScreenGui")
+ScreenGui.Name = GUI_NAME
+ScreenGui.ResetOnSpawn = false
+ScreenGui.IgnoreGuiInset = true
+ScreenGui.Parent = PlayerGui
+
+local ToggleBtn = Instance.new("TextButton")
+ToggleBtn.Size = UDim2.new(0, 150, 0, 36)
+ToggleBtn.Position = UDim2.new(0.5, -75, 0, 10)
+ToggleBtn.BackgroundColor3 = Color3.fromRGB(35,35,45)
+ToggleBtn.Text = "🎬 Animation GUI"
+ToggleBtn.TextColor3 = Color3.new(1,1,1)
+ToggleBtn.Font = Enum.Font.GothamBold
+ToggleBtn.TextSize = 14
+ToggleBtn.Parent = ScreenGui
+Instance.new("UICorner", ToggleBtn)
+
+local MainFrame = Instance.new("Frame")
+MainFrame.Size = UDim2.new(0, 500, 0, 470)
+MainFrame.Position = UDim2.new(0.5, -250, 0.5, -235)
+MainFrame.BackgroundColor3 = Color3.fromRGB(20,20,25)
+MainFrame.Visible = false
+MainFrame.Active = true
+MainFrame.Draggable = true
+MainFrame.Parent = ScreenGui
+Instance.new("UICorner", MainFrame)
+
+local Title = Instance.new("TextLabel")
+Title.Size = UDim2.new(1, 0, 0, 30)
+Title.BackgroundColor3 = Color3.fromRGB(40,40,50)
+Title.Text = "🎞 Animation Viewer v5.3"
+Title.TextColor3 = Color3.new(1,1,1)
+Title.Font = Enum.Font.GothamBold
+Title.TextSize = 15
+Title.Parent = MainFrame
+Instance.new("UICorner", Title)
+
+local SearchBox = Instance.new("TextBox")
+SearchBox.Size = UDim2.new(0, 250, 0, 30)
+SearchBox.Position = UDim2.new(0, 10, 0, 40)
+SearchBox.PlaceholderText = "🔍 Nhập tên hoặc ID animation..."
+SearchBox.BackgroundColor3 = Color3.fromRGB(28,28,34)
+SearchBox.TextColor3 = Color3.new(1,1,1)
+SearchBox.Font = Enum.Font.Gotham
+SearchBox.TextSize = 13
+SearchBox.ClearTextOnFocus = false
+SearchBox.Parent = MainFrame
+Instance.new("UICorner", SearchBox)
+
+-- Lock button
+local LockBtn = Instance.new("TextButton")
+LockBtn.Size = UDim2.new(0, 90, 0, 30)
+LockBtn.Position = UDim2.new(0, 270, 0, 40)
+LockBtn.BackgroundColor3 = Color3.fromRGB(70,70,90)
+LockBtn.TextColor3 = Color3.new(1,1,1)
+LockBtn.Font = Enum.Font.GothamBold
+LockBtn.TextSize = 13
+LockBtn.Text = "🔒 Lock GUI"
+LockBtn.Parent = MainFrame
+Instance.new("UICorner", LockBtn)
+
+-- 🧹 Remove duplicates button
+local CleanBtn = Instance.new("TextButton")
+CleanBtn.Size = UDim2.new(0, 110, 0, 30)
+CleanBtn.Position = UDim2.new(0, 370, 0, 40)
+CleanBtn.BackgroundColor3 = Color3.fromRGB(100,70,100)
+CleanBtn.TextColor3 = Color3.new(1,1,1)
+CleanBtn.Font = Enum.Font.GothamBold
+CleanBtn.TextSize = 13
+CleanBtn.Text = "🧹 Remove Duplicates"
+CleanBtn.Parent = MainFrame
+Instance.new("UICorner", CleanBtn)
+
+-- 📘 Filter ID button (NEW)
+local FilterBtn = Instance.new("TextButton")
+FilterBtn.Size = UDim2.new(0, 110, 0, 30)
+FilterBtn.Position = UDim2.new(0, 370, 0, 75)
+FilterBtn.BackgroundColor3 = Color3.fromRGB(60,110,160)
+FilterBtn.TextColor3 = Color3.new(1,1,1)
+FilterBtn.Font = Enum.Font.GothamBold
+FilterBtn.TextSize = 13
+FilterBtn.Text = "📘 Filter ID: OFF"
+FilterBtn.Parent = MainFrame
+Instance.new("UICorner", FilterBtn)
+
+local BtnFrame = Instance.new("Frame")
+BtnFrame.Size = UDim2.new(1, -10, 0, 34)
+BtnFrame.Position = UDim2.new(0, 5, 1, -40)
+BtnFrame.BackgroundTransparency = 1
+BtnFrame.Parent = MainFrame
+
+local function MakeButton(name, x)
+	local b = Instance.new("TextButton")
+	b.Size = UDim2.new(0, 100, 0, 28)
+	b.Position = UDim2.new(0, x, 0, 0)
+	b.BackgroundColor3 = Color3.fromRGB(55,55,75)
+	b.TextColor3 = Color3.new(1,1,1)
+	b.Font = Enum.Font.GothamBold
+	b.TextSize = 13
+	b.Text = name
+	b.Parent = BtnFrame
+	Instance.new("UICorner", b)
+	return b
+end
+
+local StopAllBtn = MakeButton("Stop All", 0)
+local ReloadBtn = MakeButton("Reload", 110)
+local FavBtn = MakeButton("⭐ Favorites", 220)
+
+local SpeedBox = Instance.new("TextBox")
+SpeedBox.Size = UDim2.new(0, 100, 0, 28)
+SpeedBox.Position = UDim2.new(0, 330, 0, 0)
+SpeedBox.BackgroundColor3 = Color3.fromRGB(55,55,75)
+SpeedBox.TextColor3 = Color3.new(1,1,1)
+SpeedBox.Font = Enum.Font.GothamBold
+SpeedBox.TextSize = 13
+SpeedBox.PlaceholderText = "Speed..."
+SpeedBox.Text = "1"
+SpeedBox.ClearTextOnFocus = false
+SpeedBox.Parent = BtnFrame
+Instance.new("UICorner", SpeedBox)
+
+local guiLocked = false
+local animations = {}
+local items = {}
+local favorites = {}
+local showingFavs = false
+local speedMult = 1
+local currentTrack = nil
+local filterOnlyIDs = false
+
+LockBtn.MouseButton1Click:Connect(function()
+	guiLocked = not guiLocked
+	MainFrame.Draggable = not guiLocked
+	LockBtn.Text = guiLocked and "🔓 Unlock GUI" or "🔒 Lock GUI"
+end)
+
+local Scrolling = Instance.new("ScrollingFrame")
+Scrolling.Size = UDim2.new(1, -20, 1, -150)
+Scrolling.Position = UDim2.new(0, 10, 0, 110)
+Scrolling.CanvasSize = UDim2.new(0, 0, 0, 0)
+Scrolling.ScrollBarThickness = 6
+Scrolling.BackgroundColor3 = Color3.fromRGB(25,25,30)
+Scrolling.Parent = MainFrame
+Instance.new("UICorner", Scrolling)
+
+local UIList = Instance.new("UIListLayout")
+UIList.Padding = UDim.new(0, 6)
+UIList.Parent = Scrolling
+
+local function cleanIdFromAnim(anim)
+	local id = tostring(anim.AnimationId or "")
+	local num = string.match(id, "%d+")
+	return num or id
+end
+
+local function loadAnimations()
+	for _, child in ipairs(Scrolling:GetChildren()) do
+		if child:IsA("Frame") then child:Destroy() end
+	end
+	table.clear(animations)
+	table.clear(items)
+
+	for _, obj in ipairs(game:GetDescendants()) do
+		if obj:IsA("Animation") then
+			table.insert(animations, obj)
+		end
+	end
+
+	for _, anim in ipairs(animations) do
+		local cleanId = cleanIdFromAnim(anim)
+		local item = Instance.new("Frame")
+		item.Size = UDim2.new(1, -10, 0, 36)
+		item.BackgroundColor3 = Color3.fromRGB(35,35,45)
+		item.Parent = Scrolling
+		Instance.new("UICorner", item)
+
+		local label = Instance.new("TextLabel")
+		label.Size = UDim2.new(1, -210, 1, 0)
+		label.Position = UDim2.new(0, 5, 0, 0)
+		label.BackgroundTransparency = 1
+		label.TextColor3 = Color3.new(1,1,1)
+		label.Font = Enum.Font.Gotham
+		label.TextSize = 13
+		label.TextXAlignment = Enum.TextXAlignment.Left
+		label.Text = string.format("%s - %s", anim.Name, cleanId)
+		label.Parent = item
+
+		local playOnceBtn = Instance.new("TextButton")
+		playOnceBtn.Size = UDim2.new(0, 60, 0, 26)
+		playOnceBtn.Position = UDim2.new(1, -200, 0.5, -13)
+		playOnceBtn.BackgroundColor3 = Color3.fromRGB(255, 210, 80)
+		playOnceBtn.Text = "▶1x"
+		playOnceBtn.Font = Enum.Font.GothamBold
+		playOnceBtn.TextColor3 = Color3.new(0,0,0)
+		playOnceBtn.TextSize = 13
+		playOnceBtn.Parent = item
+		Instance.new("UICorner", playOnceBtn)
+
+		local playBtn = Instance.new("TextButton")
+		playBtn.Size = UDim2.new(0, 60, 0, 26)
+		playBtn.Position = UDim2.new(1, -135, 0.5, -13)
+		playBtn.BackgroundColor3 = Color3.fromRGB(80,150,255)
+		playBtn.Text = "▶"
+		playBtn.Font = Enum.Font.GothamBold
+		playBtn.TextColor3 = Color3.new(1,1,1)
+		playBtn.TextSize = 13
+		playBtn.Parent = item
+		Instance.new("UICorner", playBtn)
+
+		local favBtn = Instance.new("TextButton")
+		favBtn.Size = UDim2.new(0, 60, 0, 26)
+		favBtn.Position = UDim2.new(1, -70, 0.5, -13)
+		favBtn.BackgroundColor3 = favorites[cleanId] and Color3.fromRGB(255,180,60) or Color3.fromRGB(90,90,120)
+		favBtn.Text = "⭐"
+		favBtn.Font = Enum.Font.GothamBold
+		favBtn.TextColor3 = Color3.new(1,1,1)
+		favBtn.TextSize = 13
+		favBtn.Parent = item
+		Instance.new("UICorner", favBtn)
+
+		playBtn.MouseButton1Click:Connect(function()
+			local char = player.Character or player.CharacterAdded:Wait()
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum then
+				local ok, track = pcall(function() return hum:LoadAnimation(anim) end)
+				if ok and track then
+					track.Looped = true
+					track:Play()
+					track:AdjustSpeed(speedMult)
+					currentTrack = track
+				end
+			end
+		end)
+
+		playOnceBtn.MouseButton1Click:Connect(function()
+			local char = player.Character or player.CharacterAdded:Wait()
+			local hum = char:FindFirstChildOfClass("Humanoid")
+			if hum then
+				local ok, track = pcall(function() return hum:LoadAnimation(anim) end)
+				if ok and track then
+					track.Looped = false
+					track:Play()
+					track:AdjustSpeed(speedMult)
+					currentTrack = track
+				end
+			end
+		end)
+
+		favBtn.MouseButton1Click:Connect(function()
+			if favorites[cleanId] then
+				favorites[cleanId] = nil
+				favBtn.BackgroundColor3 = Color3.fromRGB(90,90,120)
+			else
+				favorites[cleanId] = anim
+				favBtn.BackgroundColor3 = Color3.fromRGB(255,180,60)
+			end
+		end)
+
+		table.insert(items, {frame=item, anim=anim, id=cleanId, label=label})
+	end
+end
+
+loadAnimations()
+
+UIList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	Scrolling.CanvasSize = UDim2.new(0,0,0,UIList.AbsoluteContentSize.Y + 8)
+end)
+
+ReloadBtn.MouseButton1Click:Connect(function()
+	loadAnimations()
+end)
+
+StopAllBtn.MouseButton1Click:Connect(function()
+	local hum = player.Character and player.Character:FindFirstChildOfClass("Humanoid")
+	if not hum then return end
+	for _, t in ipairs(hum:GetPlayingAnimationTracks()) do
+		pcall(function() t:Stop() end)
+	end
+end)
+
+FavBtn.MouseButton1Click:Connect(function()
+	showingFavs = not showingFavs
+	FavBtn.Text = showingFavs and "⭐ All" or "⭐ Favorites"
+	for _, it in ipairs(items) do
+		it.frame.Visible = (not showingFavs) or (favorites[it.id] ~= nil)
+	end
+end)
+
+CleanBtn.MouseButton1Click:Connect(function()
+	local seen = {}
+	local count = 0
+	for _, it in ipairs(items) do
+		if seen[it.id] then
+			it.frame:Destroy()
+			count += 1
+		else
+			seen[it.id] = true
+		end
+	end
+	print("🧹 Removed "..count.." duplicate animations.")
+end)
+
+FilterBtn.MouseButton1Click:Connect(function()
+	filterOnlyIDs = not filterOnlyIDs
+	FilterBtn.Text = filterOnlyIDs and "📘 Filter ID: ON" or "📘 Filter ID: OFF"
+	for _, it in ipairs(items) do
+		local idText = tostring(it.anim.AnimationId or "")
+		it.frame.Visible = (not filterOnlyIDs) or idText:find("rbxassetid://")
+	end
+end)
+
+SearchBox:GetPropertyChangedSignal("Text"):Connect(function()
+	local kw = tostring(SearchBox.Text or ""):lower()
+	for _, it in ipairs(items) do
+		local name = tostring(it.anim.Name or ""):lower()
+		local id = tostring(it.id or ""):lower()
+		it.frame.Visible = (kw == "" or name:find(kw) or id:find(kw))
+	end
+end)
+
+ToggleBtn.MouseButton1Click:Connect(function()
+	MainFrame.Visible = not MainFrame.Visible
+	ToggleBtn.Text = MainFrame.Visible and "❌ Close Anim GUI" or "🎬 Animation GUI"
+end)
+
+print("✅ Animation Viewer v5.3 loaded (Filter ID added).")
