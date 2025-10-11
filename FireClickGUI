@@ -1,0 +1,414 @@
+-- FireClickGUI - Galaxy Edition (LocalScript)
+-- Dán vào StarterPlayerScripts hoặc LocalScript hợp lệ
+
+local Players = game:GetService("Players")
+local RunService = game:GetService("RunService")
+local Debris = game:GetService("Debris")
+local player = Players.LocalPlayer
+if not player then return end
+
+-- Xóa GUI cũ nếu có
+for _, g in pairs(player:WaitForChild("PlayerGui"):GetChildren()) do
+	if g.Name == "FireClickGUI" then
+		g:Destroy()
+	end
+end
+
+-- ===== GUI =====
+local gui = Instance.new("ScreenGui")
+gui.Name = "FireClickGUI"
+gui.ResetOnSpawn = false
+gui.Parent = player.PlayerGui
+
+local mainFrame = Instance.new("Frame", gui)
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 300, 0, 340)
+mainFrame.Position = UDim2.new(0.5, -150, 0.5, -170)
+mainFrame.BackgroundColor3 = Color3.fromRGB(25,25,25)
+mainFrame.BorderSizePixel = 0
+mainFrame.Active = true
+mainFrame.Draggable = true
+
+local titleBar = Instance.new("Frame", mainFrame)
+titleBar.Name = "TitleBar"
+titleBar.Size = UDim2.new(1,0,0,28)
+titleBar.Position = UDim2.new(0,0,0,0)
+titleBar.BackgroundColor3 = Color3.fromRGB(50,50,50)
+
+local titleLabel = Instance.new("TextLabel", titleBar)
+titleLabel.Size = UDim2.new(0.85,0,1,0)
+titleLabel.Position = UDim2.new(0,4,0,0)
+titleLabel.BackgroundTransparency = 1
+titleLabel.Text = "🔍 ClickDetector Radar"
+titleLabel.TextColor3 = Color3.new(1,1,1)
+titleLabel.Font = Enum.Font.GothamBold
+titleLabel.TextSize = 14
+titleLabel.TextXAlignment = Enum.TextXAlignment.Left
+
+local shrinkBtn = Instance.new("TextButton", titleBar)
+shrinkBtn.Size = UDim2.new(0.15, -6, 1, -6)
+shrinkBtn.Position = UDim2.new(0.85, 2, 0, 3)
+shrinkBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+shrinkBtn.Text = "🔽"
+shrinkBtn.Font = Enum.Font.GothamBold
+shrinkBtn.TextSize = 14
+shrinkBtn.TextColor3 = Color3.new(1,1,1)
+
+-- Controls area
+local rangeBox = Instance.new("TextBox", mainFrame)
+rangeBox.PlaceholderText = "Phạm vi (vd: 50)"
+rangeBox.Size = UDim2.new(0.55,0,0,25)
+rangeBox.Position = UDim2.new(0.05,0,0,35)
+rangeBox.BackgroundColor3 = Color3.fromRGB(40,40,40)
+rangeBox.TextColor3 = Color3.new(1,1,1)
+rangeBox.Font = Enum.Font.Gotham
+rangeBox.TextSize = 14
+rangeBox.ClearTextOnFocus = false
+
+local radarBtn = Instance.new("TextButton", mainFrame)
+radarBtn.Size = UDim2.new(0.35,0,0,25)
+radarBtn.Position = UDim2.new(0.63,0,0,35)
+radarBtn.Text = "🔎 Radar"
+radarBtn.Font = Enum.Font.GothamBold
+radarBtn.TextSize = 14
+radarBtn.BackgroundColor3 = Color3.fromRGB(90,90,200)
+radarBtn.TextColor3 = Color3.new(1,1,1)
+
+local autoBtn = Instance.new("TextButton", mainFrame)
+autoBtn.Size = UDim2.new(0.9,0,0,25)
+autoBtn.Position = UDim2.new(0.05,0,0,65)
+autoBtn.Text = "🛰️ Tự động Radar: TẮT"
+autoBtn.Font = Enum.Font.GothamBold
+autoBtn.TextSize = 14
+autoBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+autoBtn.TextColor3 = Color3.new(1,1,1)
+
+local scroll = Instance.new("ScrollingFrame", mainFrame)
+scroll.Size = UDim2.new(1, -10, 1, -100)
+scroll.Position = UDim2.new(0,5,0,95)
+scroll.CanvasSize = UDim2.new(0,0,0,0)
+scroll.ScrollBarThickness = 6
+scroll.BackgroundColor3 = Color3.fromRGB(30,30,30)
+scroll.BorderSizePixel = 0
+scroll.AutomaticCanvasSize = Enum.AutomaticSize.Y
+
+local uiList = Instance.new("UIListLayout", scroll)
+uiList.Padding = UDim.new(0,5)
+uiList.SortOrder = Enum.SortOrder.LayoutOrder
+
+-- auto-update CanvasSize
+uiList:GetPropertyChangedSignal("AbsoluteContentSize"):Connect(function()
+	scroll.CanvasSize = UDim2.new(0, 0, 0, uiList.AbsoluteContentSize.Y + 10)
+end)
+
+-- ===== Variables & helpers =====
+local autoRadar = false
+local isShrunk = false
+local highlightedParts = {} -- [part] = {highlight = Highlight, on = bool}
+
+local function getContainingPart(cd)
+	if not cd or not cd:IsA("ClickDetector") then return nil end
+	if cd.Parent and cd.Parent:IsA("BasePart") then return cd.Parent end
+	local anc = cd:FindFirstAncestorOfClass("BasePart")
+	if anc then return anc end
+	local model = cd:FindFirstAncestorOfClass("Model")
+	if model then
+		for _, d in ipairs(model:GetDescendants()) do
+			if d:IsA("BasePart") then
+				return d
+			end
+		end
+	end
+	return nil
+end
+
+local function clearResults()
+	for _, c in ipairs(scroll:GetChildren()) do
+		if c:IsA("Frame") then c:Destroy() end
+	end
+end
+
+local function showNoResult()
+	clearResults()
+	local nf = Instance.new("Frame", scroll)
+	nf.Size = UDim2.new(1, -4, 0, 40)
+	nf.BackgroundColor3 = Color3.fromRGB(45,45,45)
+	local t = Instance.new("TextLabel", nf)
+	t.Size = UDim2.new(1,0,1,0)
+	t.BackgroundTransparency = 1
+	t.Text = "Không tìm thấy ClickDetector trong phạm vi."
+	t.TextColor3 = Color3.fromRGB(200,200,200)
+	t.Font = Enum.Font.Gotham
+	t.TextSize = 14
+end
+
+local function safeCloneForViewport(obj)
+	local ok, c = pcall(function() return obj:Clone() end)
+	if not ok or not c then return nil end
+	-- remove scripts for safety
+	for _,d in ipairs(c:GetDescendants()) do
+		if d:IsA("Script") or d:IsA("LocalScript") or d:IsA("ModuleScript") then
+			d:Destroy()
+		end
+	end
+	return c
+end
+
+local function createViewportFor(part)
+	local viewport = Instance.new("ViewportFrame")
+	viewport.Size = UDim2.new(1,0,0,90)
+	viewport.BackgroundColor3 = Color3.fromRGB(15,15,15)
+	viewport.BorderSizePixel = 0
+
+	local srcModel = nil
+	if part:IsA("Model") then
+		srcModel = part
+	else
+		-- wrap BasePart into a Model for nicer camera bounding
+		local m = Instance.new("Model")
+		local c = part:Clone()
+		c.Parent = m
+		m.PrimaryPart = c
+		srcModel = m
+	end
+
+	local clone = safeCloneForViewport(srcModel)
+	if not clone then return viewport end
+	clone.Parent = viewport
+
+	local cam = Instance.new("Camera")
+	cam.Parent = viewport
+	viewport.CurrentCamera = cam
+
+	local success, cf, size = pcall(function() return clone:GetBoundingBox() end)
+	if success and cf then
+		local lookAt = cf.Position
+		local dist = math.max(size.X, size.Y, size.Z)
+		-- position camera slightly above-right-back for nicer view
+		cam.CFrame = CFrame.new(lookAt + Vector3.new(0, dist*0.9, dist*1.8), lookAt)
+	end
+
+	return viewport
+end
+
+-- ===== Galaxy outline system =====
+-- Color gradient: purple -> teal -> pink (we'll interpolate across HSV)
+local function hsvToColor(h,s,v)
+	return Color3.fromHSV(h, s, v)
+end
+
+local galaxyCycleSeconds = 4 -- full cycle
+local highlightList = {} -- list of parts to animate
+
+local function setHighlightOn(part, enable)
+	if not part or not part:IsA("BasePart") then return end
+	if enable then
+		if highlightedParts[part] and highlightedParts[part].on then return end
+		local hl = Instance.new("Highlight")
+		hl.Name = "GalaxyHighlight"
+		hl.Adornee = part
+		hl.FillTransparency = 0.9 -- keep subtle fill
+		hl.OutlineTransparency = 0 -- we'll color the outline
+		hl.Parent = workspace -- keep highlights in workspace
+		highlightedParts[part] = {highlight = hl, on = true, hueOff = 0}
+		table.insert(highlightList, part)
+	else
+		local info = highlightedParts[part]
+		if info and info.highlight then
+			info.highlight:Destroy()
+		end
+		highlightedParts[part] = nil
+		-- remove from highlightList
+		for i,p in ipairs(highlightList) do
+			if p == part then table.remove(highlightList, i); break end
+		end
+	end
+end
+
+-- Animate highlights (lightweight)
+local lastTime = tick()
+RunService.Heartbeat:Connect(function()
+	local now = tick()
+	local dt = now - lastTime
+	lastTime = now
+	if #highlightList == 0 then return end
+	-- progress fraction in [0,1)
+	local t = now % galaxyCycleSeconds
+	local frac = t / galaxyCycleSeconds
+	-- choose hue progression across 0.8 -> 0.5 -> 0.95 (purple->teal->pink approximations)
+	-- we'll simply map frac to hue with wrap
+	local hue = (0.8 + frac * 0.6) % 1 -- cycles in hue
+	for _, part in ipairs(highlightList) do
+		local info = highlightedParts[part]
+		if info and info.highlight and info.highlight.Parent then
+			-- subtle saturation and value
+			local color = hsvToColor(hue, 0.8, 0.9)
+			-- set both outline and fill tint lightly
+			info.highlight.OutlineColor = color
+			info.highlight.FillColor = color
+			-- keep FillTransparency high so only outline is visible
+			info.highlight.FillTransparency = 0.92
+		end
+	end
+end)
+
+-- ===== Radar logic =====
+local function runRadar()
+	clearResults()
+	local range = tonumber(rangeBox.Text) or 50
+	local root = player.Character and player.Character:FindFirstChild("HumanoidRootPart")
+	if not root then showNoResult(); return end
+
+	local found = 0
+	for _, cd in ipairs(workspace:GetDescendants()) do
+		if cd:IsA("ClickDetector") then
+			local part = getContainingPart(cd)
+			if part and (part.Position - root.Position).Magnitude <= range then
+				found = found + 1
+				-- build item
+				local item = Instance.new("Frame")
+				item.Size = UDim2.new(1, -4, 0, 120)
+				item.BackgroundColor3 = Color3.fromRGB(45,45,45)
+				item.Parent = scroll
+
+				local name = Instance.new("TextLabel", item)
+				name.Text = part.Name
+				name.Size = UDim2.new(1,0,0,20)
+				name.Position = UDim2.new(0,0,0,0)
+				name.BackgroundTransparency = 1
+				name.TextColor3 = Color3.new(1,1,1)
+				name.Font = Enum.Font.GothamBold
+				name.TextSize = 13
+
+				-- distance label
+				local distLabel = Instance.new("TextLabel", item)
+				distLabel.Size = UDim2.new(0.4,0,0,18)
+				distLabel.Position = UDim2.new(0.6,0,0,2)
+				distLabel.BackgroundTransparency = 1
+				local distVal = math.floor((part.Position - root.Position).Magnitude)
+				distLabel.Text = tostring(distVal) .. " stud"
+				distLabel.TextColor3 = Color3.fromRGB(200,200,200)
+				distLabel.Font = Enum.Font.Gotham
+				distLabel.TextSize = 12
+				distLabel.TextXAlignment = Enum.TextXAlignment.Right
+
+				-- preview
+				local viewport = createViewportFor(part)
+				viewport.Position = UDim2.new(0,0,0,22)
+				viewport.Parent = item
+
+				-- buttons container
+				local btnFrame = Instance.new("Frame", item)
+				btnFrame.Size = UDim2.new(1,0,0,25)
+				btnFrame.Position = UDim2.new(0,0,1,-25)
+				btnFrame.BackgroundTransparency = 1
+
+				local clickBtn = Instance.new("TextButton", btnFrame)
+				clickBtn.Size = UDim2.new(0.6, -4, 1, 0)
+				clickBtn.Position = UDim2.new(0,0,0,0)
+				clickBtn.Text = "⚡ Kích hoạt"
+				clickBtn.BackgroundColor3 = Color3.fromRGB(90,90,200)
+				clickBtn.Font = Enum.Font.GothamBold
+				clickBtn.TextColor3 = Color3.new(1,1,1)
+				clickBtn.TextSize = 14
+
+				local outlineBtn = Instance.new("TextButton", btnFrame)
+				outlineBtn.Size = UDim2.new(0.4, 0, 1, 0)
+				outlineBtn.Position = UDim2.new(0.6, 4, 0, 0)
+				outlineBtn.Text = "🌌 Outline"
+				outlineBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+				outlineBtn.Font = Enum.Font.GothamBold
+				outlineBtn.TextColor3 = Color3.new(1,1,1)
+				outlineBtn.TextSize = 14
+
+				-- click binds
+				clickBtn.MouseButton1Click:Connect(function()
+					if cd and cd.Parent then
+						pcall(function() fireclickdetector(cd) end)
+					end
+				end)
+
+				-- outline toggle (persist until user toggles off)
+				local outlineOn = false
+				outlineBtn.MouseButton1Click:Connect(function()
+					outlineOn = not outlineOn
+					if outlineOn then
+						outlineBtn.BackgroundColor3 = Color3.fromRGB(120,50,200)
+						setHighlightOn(part, true)
+					else
+						outlineBtn.BackgroundColor3 = Color3.fromRGB(70,70,70)
+						setHighlightOn(part, false)
+					end
+				end)
+			end
+		end
+	end
+
+	if found == 0 then showNoResult() end
+end
+
+-- Buttons behavior
+radarBtn.MouseButton1Click:Connect(function()
+	pcall(runRadar)
+end)
+
+autoBtn.MouseButton1Click:Connect(function()
+	autoRadar = not autoRadar
+	if autoRadar then
+		autoBtn.Text = "🛰️ Tự động Radar: BẬT"
+		autoBtn.BackgroundColor3 = Color3.fromRGB(70,120,255)
+	else
+		autoBtn.Text = "🛰️ Tự động Radar: TẮT"
+		autoBtn.BackgroundColor3 = Color3.fromRGB(60,60,60)
+	end
+end)
+
+-- Shrink / expand
+shrinkBtn.MouseButton1Click:Connect(function()
+	isShrunk = not isShrunk
+	if isShrunk then
+		-- collapse to title only
+		mainFrame.Size = UDim2.new(0, 200, 0, 30)
+		mainFrame.Position = UDim2.new(0.02, 0, 0.02, 0)
+		shrinkBtn.Text = "🔼"
+		-- hide controls except title
+		for _, child in ipairs(mainFrame:GetChildren()) do
+			if child ~= titleBar then
+				child.Visible = false
+			end
+		end
+	else
+		-- restore
+		mainFrame.Size = UDim2.new(0, 300, 0, 340)
+		mainFrame.Position = UDim2.new(0.5, -150, 0.5, -170)
+		shrinkBtn.Text = "🔽"
+		for _, child in ipairs(mainFrame:GetChildren()) do
+			child.Visible = true
+		end
+	end
+end)
+
+-- Auto radar loop
+task.spawn(function()
+	while true do
+		if autoRadar then
+			pcall(runRadar)
+		end
+		task.wait(5)
+	end
+end)
+
+-- Clean-up: when GUI removed, clear highlights
+gui.AncestryChanged:Connect(function()
+	if not gui:IsDescendantOf(game) then
+		for p,info in pairs(highlightedParts) do
+			if info and info.highlight then
+				info.highlight:Destroy()
+			end
+		end
+		highlightedParts = {}
+		highlightList = {}
+	end
+end)
+
+-- End of script
