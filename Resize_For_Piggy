@@ -1,0 +1,195 @@
+local UserInputService = game:GetService("UserInputService")
+local ReplicatedStorage = game:GetService("ReplicatedStorage")
+local Players = game:GetService("Players")
+
+local player = Players.LocalPlayer
+local mouse = player:GetMouse()
+local camera = workspace.CurrentCamera
+
+-- Biến trạng thái
+local isSelectMode = false -- Trạng thái bật/tắt chọn khối
+local selectedBlock = nil
+local highlight = Instance.new("Highlight")
+highlight.FillTransparency = 0.5
+highlight.OutlineColor = Color3.fromRGB(255, 255, 255)
+
+-- Hàm hỗ trợ kéo thả (Dùng chung cho cả Menu và Nút Toggle)
+local function makeDraggable(frame)
+	local dragging, dragInput, dragStart, startPos
+	frame.InputBegan:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = true
+			dragStart = input.Position
+			startPos = frame.Position
+		end
+	end)
+	frame.InputChanged:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseMovement or input.UserInputType == Enum.UserInputType.Touch then
+			dragInput = input
+		end
+	end)
+	UserInputService.InputChanged:Connect(function(input)
+		if input == dragInput and dragging then
+			local delta = input.Position - dragStart
+			frame.Position = UDim2.new(startPos.X.Scale, startPos.X.Offset + delta.X, startPos.Y.Scale, startPos.Y.Offset + delta.Y)
+		end
+	end)
+	UserInputService.InputEnded:Connect(function(input)
+		if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+			dragging = false
+		end
+	end)
+end
+
+----------------------------------------------------------------
+-- 1. TẠO GIAO DIỆN
+----------------------------------------------------------------
+local screenGui = Instance.new("ScreenGui", gethui())
+screenGui.Name = "ResizeGuiV2"
+screenGui.ResetOnSpawn = false
+
+-- Nút Ẩn/Hiện (Có thể kéo)
+local toggleBtn = Instance.new("TextButton", screenGui)
+toggleBtn.Name = "ToggleButton"
+toggleBtn.Size = UDim2.new(0, 60, 0, 60)
+toggleBtn.Position = UDim2.new(0, 20, 0.5, -30)
+toggleBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+toggleBtn.Text = "MENU"
+toggleBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+toggleBtn.Font = Enum.Font.GothamBold
+toggleBtn.TextSize = 12
+local toggleCorner = Instance.new("UICorner", toggleBtn)
+toggleCorner.CornerRadius = UDim.new(1, 0) -- Làm nút tròn vo
+makeDraggable(toggleBtn)
+
+-- Menu Chính
+local mainFrame = Instance.new("Frame", screenGui)
+mainFrame.Name = "MainFrame"
+mainFrame.Size = UDim2.new(0, 220, 0, 320)
+mainFrame.Position = UDim2.new(0.5, -110, 0.5, -160)
+mainFrame.BackgroundColor3 = Color3.fromRGB(35, 35, 35)
+mainFrame.Visible = false -- Mặc định ẩn
+Instance.new("UICorner", mainFrame).CornerRadius = UDim.new(0, 15)
+makeDraggable(mainFrame)
+
+-- Title
+local title = Instance.new("TextLabel", mainFrame)
+title.Size = UDim2.new(1, 0, 0, 40)
+title.Text = "RESIZE TOOLS V2"
+title.TextColor3 = Color3.fromRGB(255, 255, 255)
+title.BackgroundTransparency = 1
+title.Font = Enum.Font.GothamBold
+title.TextSize = 16
+
+-- Nút Bật/Tắt Chế Độ Chọn
+local selectModeBtn = Instance.new("TextButton", mainFrame)
+selectModeBtn.Size = UDim2.new(0.8, 0, 0, 35)
+selectModeBtn.Position = UDim2.new(0.1, 0, 0.15, 0)
+selectModeBtn.Text = "SELECT: OFF"
+selectModeBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+selectModeBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+selectModeBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", selectModeBtn).CornerRadius = UDim.new(0, 8)
+
+-- Các ô nhập liệu
+local function createInput(placeholder, pos)
+	local txt = Instance.new("TextBox", mainFrame)
+	txt.Size = UDim2.new(0.8, 0, 0, 35)
+	txt.Position = pos
+	txt.PlaceholderText = placeholder
+	txt.Text = ""
+	txt.BackgroundColor3 = Color3.fromRGB(50, 50, 50)
+	txt.TextColor3 = Color3.fromRGB(255, 255, 255)
+	Instance.new("UICorner", txt).CornerRadius = UDim.new(0, 8)
+	return txt
+end
+
+local inputX = createInput("Size X", UDim2.new(0.1, 0, 0.3, 0))
+local inputY = createInput("Size Y", UDim2.new(0.1, 0, 0.45, 0))
+local inputZ = createInput("Size Z", UDim2.new(0.1, 0, 0.6, 0))
+
+-- Nút Kích Hoạt
+local actionBtn = Instance.new("TextButton", mainFrame)
+actionBtn.Size = UDim2.new(0.8, 0, 0, 45)
+actionBtn.Position = UDim2.new(0.1, 0, 0.8, 0)
+actionBtn.Text = "COMMIT RESIZE"
+actionBtn.BackgroundColor3 = Color3.fromRGB(0, 170, 127)
+actionBtn.TextColor3 = Color3.fromRGB(255, 255, 255)
+actionBtn.Font = Enum.Font.GothamBold
+Instance.new("UICorner", actionBtn).CornerRadius = UDim.new(0, 8)
+
+----------------------------------------------------------------
+-- 2. XỬ LÝ SỰ KIỆN
+----------------------------------------------------------------
+
+-- Ẩn/Hiện Menu
+toggleBtn.MouseButton1Click:Connect(function()
+	mainFrame.Visible = not mainFrame.Visible
+end)
+
+-- Bật/Tắt chế độ chọn khối
+selectModeBtn.MouseButton1Click:Connect(function()
+	isSelectMode = not isSelectMode
+	if isSelectMode then
+		selectModeBtn.Text = "SELECT: ON"
+		selectModeBtn.BackgroundColor3 = Color3.fromRGB(0, 120, 215)
+	else
+		selectModeBtn.Text = "SELECT: OFF"
+		selectModeBtn.BackgroundColor3 = Color3.fromRGB(150, 50, 50)
+		highlight.Parent = nil
+		selectedBlock = nil
+	end
+end)
+
+-- Chọn khối trong Workspace
+UserInputService.InputBegan:Connect(function(input, processed)
+	if processed or not isSelectMode then return end
+	
+	if input.UserInputType == Enum.UserInputType.MouseButton1 or input.UserInputType == Enum.UserInputType.Touch then
+		local unitRay = camera:ScreenPointToRay(input.Position.X, input.Position.Y)
+		local raycastResult = workspace:Raycast(unitRay.Origin, unitRay.Direction * 500)
+
+		if raycastResult and raycastResult.Instance then
+			local model = raycastResult.Instance:FindFirstAncestorOfClass("Model")
+			if model and model.Parent and model.Parent.Name == "BuildModel" then
+				selectedBlock = model
+				highlight.Parent = selectedBlock
+			end
+		end
+	end
+end)
+
+-- Gửi lệnh cho Server
+actionBtn.MouseButton1Click:Connect(function()
+	if not selectedBlock then 
+		print("Lỗi: Chưa chọn khối!")
+		return 
+	end
+
+	local x = tonumber(inputX.Text) or 1
+	local y = tonumber(inputY.Text) or 1
+	local z = tonumber(inputZ.Text) or 1
+	
+	local colorPart = selectedBlock:FindFirstChild("ColorPart") or selectedBlock:FindFirstChildWhichIsA("BasePart")
+
+	if colorPart then
+		local args = {
+			selectedBlock,
+			{
+				colorPart,
+				colorPart.CFrame,
+				Vector3.new(x, y, z)
+			}
+		}
+		
+		local success, err = pcall(function()
+			ReplicatedStorage.Functions.CommitResize:InvokeServer(unpack(args))
+		end)
+		
+		if success then
+			print("Thành công!")
+		else
+			warn("Lỗi Server: " .. tostring(err))
+		end
+	end
+end)
